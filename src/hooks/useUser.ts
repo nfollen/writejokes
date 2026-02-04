@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useStore } from '@/lib/store';
 import type { User } from '@/types';
@@ -10,11 +10,16 @@ export function useUser() {
   const [loading, setLoading] = useState(true);
   const { user, setUser, setShowOnboarding } = useStore();
   const supabase = createClient();
+  const mounted = useRef(true);
 
   useEffect(() => {
+    mounted.current = true;
+    
     const fetchUser = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!mounted.current) return;
         
         if (!session?.user) {
           setUser(null);
@@ -28,6 +33,8 @@ export function useUser() {
           .eq('id', session.user.id)
           .single();
 
+        if (!mounted.current) return;
+
         if (error) {
           console.error('Error fetching user profile:', error);
           setUser(null);
@@ -37,11 +44,12 @@ export function useUser() {
             setShowOnboarding(true);
           }
         }
-      } catch (error) {
+      } catch (error: any) {
+        if (error?.name === 'AbortError') return;
         console.error('Error in useUser:', error);
-        setUser(null);
+        if (mounted.current) setUser(null);
       } finally {
-        setLoading(false);
+        if (mounted.current) setLoading(false);
       }
     };
 
@@ -49,6 +57,8 @@ export function useUser() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
+        if (!mounted.current) return;
+        
         if (event === 'SIGNED_OUT') {
           setUser(null);
         } else if (session?.user) {
@@ -58,14 +68,17 @@ export function useUser() {
             .eq('id', session.user.id)
             .single();
           
-          if (profile) {
+          if (profile && mounted.current) {
             setUser(profile as User);
           }
         }
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted.current = false;
+      subscription.unsubscribe();
+    };
   }, [supabase, setUser, setShowOnboarding]);
 
   const signOut = async () => {
