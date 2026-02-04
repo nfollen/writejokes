@@ -1,4 +1,5 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
@@ -6,11 +7,28 @@ export async function GET(request: Request) {
   const code = searchParams.get('code');
   const next = searchParams.get('next') ?? '/dashboard';
   
-  // Use env var for proper redirect (handles Replit proxy correctly)
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://writejokes.replit.app';
 
   if (code) {
-    const supabase = createServerSupabaseClient();
+    const cookieStore = cookies();
+    
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          },
+        },
+      }
+    );
+    
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     
     if (!error) {
@@ -18,6 +36,5 @@ export async function GET(request: Request) {
     }
   }
 
-  // Return to login page with error
   return NextResponse.redirect(`${baseUrl}/login?error=auth_callback_error`);
 }
