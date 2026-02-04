@@ -48,7 +48,7 @@ export function useUser() {
     fetchUser();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event: string, session: any) => {
         if (event === 'SIGNED_OUT') {
           setUser(null);
         } else if (event === 'SIGNED_IN' && session?.user) {
