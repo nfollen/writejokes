@@ -12,7 +12,13 @@ export function useUser() {
 
   const fetchUser = useCallback(async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      console.log('Session check:', { 
+        hasSession: !!session, 
+        userId: session?.user?.id,
+        sessionError 
+      });
       
       if (!session?.user) {
         setUser(null);
@@ -20,11 +26,13 @@ export function useUser() {
         return;
       }
 
-      const { data: profile, error } = await supabase
+      const { data: profile, error, status } = await supabase
         .from('users')
         .select('*')
         .eq('id', session.user.id)
         .single();
+
+      console.log('Profile fetch:', { profile, error, status });
 
       if (error) {
         console.error('Error fetching user profile:', error);
