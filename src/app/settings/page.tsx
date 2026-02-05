@@ -31,6 +31,9 @@ export default function SettingsPage() {
   const [selectedStyles, setSelectedStyles] = useState<JokeStyle[]>(
     user?.preferred_styles || []
   );
+  const [defaultWpm, setDefaultWpm] = useState<number>(
+    user?.default_wpm || 75
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
 
@@ -62,6 +65,7 @@ export default function SettingsPage() {
         .update({
           favorite_comedians: selectedComedians,
           preferred_styles: selectedStyles,
+          default_wpm: defaultWpm,
         })
         .eq('id', user.id);
 
@@ -70,6 +74,7 @@ export default function SettingsPage() {
       updateUser({
         favorite_comedians: selectedComedians,
         preferred_styles: selectedStyles,
+        default_wpm: defaultWpm,
       });
     } catch (error) {
       console.error('Error saving preferences:', error);
@@ -298,6 +303,42 @@ export default function SettingsPage() {
                         </div>
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                {/* Speaking Speed (WPM) */}
+                <div>
+                  <label className="block text-sm font-medium mb-3">
+                    Speaking Speed (Words Per Minute)
+                  </label>
+                  <p className="text-sm text-muted mb-3">
+                    Used to auto-calculate joke duration for set lists. Slower = longer jokes, faster = shorter.
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="range"
+                      min="50"
+                      max="150"
+                      value={defaultWpm}
+                      onChange={(e) => setDefaultWpm(Number(e.target.value))}
+                      className="flex-1 h-2 bg-card rounded-lg appearance-none cursor-pointer accent-primary"
+                    />
+                    <div className="flex items-center gap-2 min-w-[100px]">
+                      <input
+                        type="number"
+                        value={defaultWpm}
+                        onChange={(e) => setDefaultWpm(Math.min(150, Math.max(50, Number(e.target.value))))}
+                        className="w-16 px-2 py-1 rounded-lg bg-card border border-border text-foreground text-sm text-center"
+                        min={50}
+                        max={150}
+                      />
+                      <span className="text-sm text-muted">WPM</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-xs text-muted mt-1">
+                    <span>Slow (50)</span>
+                    <span>Average (75)</span>
+                    <span>Fast (150)</span>
                   </div>
                 </div>
 

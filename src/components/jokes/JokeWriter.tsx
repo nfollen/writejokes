@@ -49,11 +49,17 @@ export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
     analysis: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [durationSeconds, setDurationSeconds] = useState(30);
 
   if (!user) return null;
 
   const { allowed: canWrite, remaining } = canWriteJoke(user);
+
+  // Calculate duration from word count (default 75 WPM, user can customize)
+  const calculateDuration = (text: string): number => {
+    const wordCount = text.trim().split(/\s+/).filter(w => w.length > 0).length;
+    const wpm = (user as any).default_wpm || 75;
+    return Math.max(5, Math.round((wordCount / wpm) * 60));
+  };
 
   const generatePrompt = async () => {
     console.log('[JokeWriter] Generate prompt clicked');
@@ -136,7 +142,7 @@ export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
         ? 'freeform' 
         : (currentPrompt?.category || 'freeform');
 
-      // Save the joke
+      // Save the joke with auto-calculated duration
       await createJoke({
         prompt: currentPrompt?.prompt || null,
         joke_text: jokeText,
@@ -146,7 +152,7 @@ export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
         category: category as JokeCategory,
         is_freeform: isFreeform,
         custom_tags: [],
-        duration_seconds: durationSeconds,
+        duration_seconds: calculateDuration(jokeText),
       });
 
       await refreshUser();
@@ -258,21 +264,6 @@ export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
             className="min-h-[200px] text-xl"
             disabled={isGrading}
           />
-
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-muted">Duration:</label>
-              <input
-                type="number"
-                value={durationSeconds}
-                onChange={(e) => setDurationSeconds(Number(e.target.value))}
-                className="w-20 px-3 py-1.5 rounded-lg bg-card border border-border text-foreground text-sm"
-                min={5}
-                max={600}
-              />
-              <span className="text-sm text-muted">seconds</span>
-            </div>
-          </div>
 
           {error && (
             <div className="flex items-center gap-2 p-4 rounded-lg bg-error/10 border border-error/30">

@@ -70,6 +70,7 @@ export interface User {
   favorite_comedians: string[];
   preferred_styles: JokeStyle[];
   onboarding_complete: boolean;
+  default_wpm: number; // Words per minute for duration calculation (default 75)
   created_at: string;
   updated_at: string;
 }
