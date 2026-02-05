@@ -18,6 +18,15 @@ interface JokeWriterProps {
   onUpgradeClick: () => void;
 }
 
+// Prompt type options - Random picks any category
+const PROMPT_TYPES = [
+  { value: 'random', label: 'Random' },
+  ...JOKE_CATEGORIES.filter((c) => c.value !== 'freeform').map((c) => ({
+    value: c.value,
+    label: c.label,
+  })),
+];
+
 export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
   const { user, refreshUser } = useUser();
   const { createJoke } = useJokes();
@@ -26,14 +35,13 @@ export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
     setCurrentPrompt,
     selectedStyle,
     setSelectedStyle,
-    selectedCategory,
-    setSelectedCategory,
     jokeText,
     setJokeText,
     isGrading,
     setIsGrading,
   } = useStore();
 
+  const [promptType, setPromptType] = useState<string>('random');
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
   const [gradeResult, setGradeResult] = useState<{
     score: number;
@@ -51,14 +59,19 @@ export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
     setIsGeneratingPrompt(true);
     setError(null);
     setGradeResult(null);
-    setJokeText('');
 
     try {
+      // If random, pick a random category
+      const categories = JOKE_CATEGORIES.filter((c) => c.value !== 'freeform').map((c) => c.value);
+      const category = promptType === 'random' 
+        ? categories[Math.floor(Math.random() * categories.length)]
+        : promptType;
+
       const response = await fetch('/api/prompts/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          category: selectedCategory,
+          category,
           style: selectedStyle,
         }),
       });
@@ -74,7 +87,7 @@ export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
     }
   };
 
-  const submitJoke = async (isFreeform = false) => {
+  const submitJoke = async () => {
     if (!jokeText.trim()) {
       setError('Please write your joke first!');
       return;
@@ -89,13 +102,15 @@ export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
     setError(null);
 
     try {
+      const isFreeform = !currentPrompt;
+      
       // Grade the joke
       const gradeResponse = await fetch('/api/jokes/grade', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jokeText,
-          prompt: isFreeform ? null : currentPrompt?.prompt,
+          prompt: currentPrompt?.prompt || null,
           style: selectedStyle,
         }),
       });
@@ -105,14 +120,19 @@ export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
       const gradeData = await gradeResponse.json();
       setGradeResult(gradeData);
 
+      // Determine category
+      const category = isFreeform 
+        ? 'freeform' 
+        : (currentPrompt?.category || 'freeform');
+
       // Save the joke
       await createJoke({
-        prompt: isFreeform ? null : currentPrompt?.prompt || null,
+        prompt: currentPrompt?.prompt || null,
         joke_text: jokeText,
         score: gradeData.score,
         tips: gradeData.tips,
         style: selectedStyle,
-        category: isFreeform ? 'freeform' : selectedCategory,
+        category: category as JokeCategory,
         is_freeform: isFreeform,
         custom_tags: [],
         duration_seconds: durationSeconds,
@@ -152,7 +172,7 @@ export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
         </div>
       )}
 
-      {/* Style & Category Selection */}
+      {/* Style & Prompt Type Selection */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Select
           label="Joke Style"
@@ -161,17 +181,14 @@ export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
           options={JOKE_STYLES.map((s) => ({ value: s.value, label: s.label }))}
         />
         <Select
-          label="Category"
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value as JokeCategory)}
-          options={JOKE_CATEGORIES.filter((c) => c.value !== 'freeform').map((c) => ({
-            value: c.value,
-            label: c.label,
-          }))}
+          label="Prompt Type"
+          value={promptType}
+          onChange={(e) => setPromptType(e.target.value)}
+          options={PROMPT_TYPES}
         />
       </div>
 
-      {/* Prompt Display or Generator */}
+      {/* Prompt Section (Optional) */}
       <Card>
         <CardContent>
           {currentPrompt ? (
@@ -195,31 +212,28 @@ export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
               </div>
             </div>
           ) : (
-            <div className="text-center py-8">
-              <Sparkles className="w-12 h-12 text-primary mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Get a Writing Prompt</h3>
-              <p className="text-muted mb-6">
-                Let AI generate a creative prompt based on your style and category
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Button
-                  onClick={generatePrompt}
-                  loading={isGeneratingPrompt}
-                  icon={<Sparkles className="w-4 h-4" />}
-                >
-                  Generate Prompt
-                </Button>
-                <Button variant="ghost" onClick={() => submitJoke(true)}>
-                  Write Freeform Instead
-                </Button>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-2">
+              <div className="text-center sm:text-left">
+                <p className="text-muted text-sm">
+                  Need inspiration? Generate a prompt, or just start writing below.
+                </p>
               </div>
+              <Button
+                onClick={generatePrompt}
+                loading={isGeneratingPrompt}
+                icon={<Sparkles className="w-4 h-4" />}
+                variant="secondary"
+                size="sm"
+              >
+                Generate Prompt
+              </Button>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Writing Area */}
-      {(currentPrompt || gradeResult) && (
+      {/* Writing Area - Always Visible */}
+      {!gradeResult && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -258,7 +272,7 @@ export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
 
           <div className="flex gap-3">
             <Button
-              onClick={() => submitJoke(false)}
+              onClick={submitJoke}
               loading={isGrading}
               disabled={!jokeText.trim() || !canWrite}
               icon={<Send className="w-4 h-4" />}
@@ -289,6 +303,12 @@ export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
               </div>
 
               <CardContent className="p-6 space-y-6">
+                {/* The joke they wrote */}
+                <div>
+                  <h4 className="font-semibold mb-2">Your Joke</h4>
+                  <p className="text-muted italic">"{jokeText}"</p>
+                </div>
+
                 {/* Analysis */}
                 <div>
                   <h4 className="font-semibold mb-2">Analysis</h4>
