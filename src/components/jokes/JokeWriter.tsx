@@ -56,6 +56,7 @@ export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
   const { allowed: canWrite, remaining } = canWriteJoke(user);
 
   const generatePrompt = async () => {
+    console.log('[JokeWriter] Generate prompt clicked');
     setIsGeneratingPrompt(true);
     setError(null);
     setGradeResult(null);
@@ -67,6 +68,8 @@ export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
         ? categories[Math.floor(Math.random() * categories.length)]
         : promptType;
 
+      console.log('[JokeWriter] Calling API with:', { category, style: selectedStyle });
+
       const response = await fetch('/api/prompts/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -76,12 +79,20 @@ export function JokeWriter({ onUpgradeClick }: JokeWriterProps) {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to generate prompt');
+      console.log('[JokeWriter] API response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[JokeWriter] API error:', errorData);
+        throw new Error(errorData.error || 'Failed to generate prompt');
+      }
 
       const data = await response.json();
+      console.log('[JokeWriter] Prompt received:', data);
       setCurrentPrompt(data);
-    } catch (err) {
-      setError('Failed to generate prompt. Please try again.');
+    } catch (err: any) {
+      console.error('[JokeWriter] Error:', err);
+      setError(err.message || 'Failed to generate prompt. Please try again.');
     } finally {
       setIsGeneratingPrompt(false);
     }
