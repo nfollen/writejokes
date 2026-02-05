@@ -1,12 +1,7 @@
 import OpenAI from 'openai';
 import type { JokeStyle, JokeCategory, JokeGradeResponse, GeneratedPrompt, AISetNotes, Joke } from '@/types';
 
-// Initialize OpenAI client
-const openai = process.env.OPENAI_API_KEY 
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  : null;
-
-// Initialize Grok (xAI) client as fallback
+// Initialize Grok (xAI) client - PRIMARY
 const grok = process.env.XAI_API_KEY
   ? new OpenAI({ 
       apiKey: process.env.XAI_API_KEY,
@@ -14,29 +9,25 @@ const grok = process.env.XAI_API_KEY
     })
   : null;
 
-// Helper to get working client
-function getClient(): { client: OpenAI; model: string; provider: string } {
-  if (openai) {
-    return { client: openai, model: 'gpt-4o-mini', provider: 'openai' };
-  }
-  if (grok) {
-    return { client: grok, model: 'grok-2-latest', provider: 'grok' };
-  }
-  throw new Error('No AI provider configured. Set OPENAI_API_KEY or XAI_API_KEY.');
-}
+// Initialize OpenAI client - FALLBACK
+const openai = process.env.OPENAI_API_KEY 
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
-// Helper for chat completion with fallback
+// Helper for chat completion with fallback (Grok first, then OpenAI)
 async function chatCompletion(
   messages: { role: 'system' | 'user'; content: string }[],
   options: { temperature?: number; max_tokens?: number; json?: boolean } = {}
 ): Promise<string> {
   const providers = [];
   
-  if (openai) providers.push({ client: openai, model: 'gpt-4o-mini', name: 'OpenAI' });
+  // Grok first (primary)
   if (grok) providers.push({ client: grok, model: 'grok-2-latest', name: 'Grok' });
+  // OpenAI as fallback
+  if (openai) providers.push({ client: openai, model: 'gpt-4o-mini', name: 'OpenAI' });
   
   if (providers.length === 0) {
-    throw new Error('No AI provider configured. Set OPENAI_API_KEY or XAI_API_KEY in environment.');
+    throw new Error('No AI provider configured. Set XAI_API_KEY or OPENAI_API_KEY in environment.');
   }
 
   let lastError: Error | null = null;
@@ -61,7 +52,6 @@ async function chatCompletion(
     } catch (err: any) {
       console.error(`[AI] ${provider.name} failed:`, err?.message || err);
       
-      // Log specific error types
       if (err?.status === 401) {
         console.error(`[AI] ${provider.name}: Invalid API key`);
       } else if (err?.status === 429) {
@@ -84,28 +74,35 @@ export async function generateJokePrompt(
   usedPromptHashes: string[] = []
 ): Promise<GeneratedPrompt> {
   const comedianInfluence = favoriteComedians.length > 0
-    ? `The prompt should be inspired by the comedic sensibilities of: ${favoriteComedians.join(', ')}.`
+    ? `Draw from the sensibilities of: ${favoriteComedians.join(', ')}.`
     : '';
 
-  const prompt = `You are a comedy writing coach. Generate a single creative joke prompt for a comedian to write a ${style} joke about ${category === 'freeform' ? 'any topic' : category}.
+  const prompt = `You're a comedy writing coach giving a comedian their next writing assignment.
+
+Generate ONE direct, specific prompt for a ${style} joke about ${category === 'freeform' ? 'any topic' : category}.
 
 ${comedianInfluence}
 
-The prompt should:
-- Be specific enough to inspire creativity but open enough for interpretation
-- Challenge the comedian to find unexpected angles
-- Be suitable for a ${style} format
-- Not be a joke itself, but a springboard for comedy
+Rules:
+- Be DIRECT. No "Imagine a world where..." or "How do you feel about..."
+- Give them a specific angle, observation, or premise to explore
+- The prompt should be a launchpad, not a complete joke setup
+- Keep it punchy - one or two sentences max
+- Examples of GOOD prompts:
+  - "The worst part about going to the gym in January"
+  - "Dating apps but you're being brutally honest in your bio"
+  - "The passive-aggressive notes your roommate leaves"
+  - "What your Uber driver is actually thinking"
 
-Respond with ONLY the prompt text, nothing else. Keep it under 100 words.`;
+Respond with ONLY the prompt text. Nothing else.`;
 
   const content = await chatCompletion(
     [{ role: 'user', content: prompt }],
-    { temperature: 0.9, max_tokens: 150 }
+    { temperature: 0.95, max_tokens: 100 }
   );
 
   return {
-    prompt: content || 'Write a joke about something that happened to you today.',
+    prompt: content || 'Write about the most annoying thing that happened to you this week.',
     category,
     style,
   };
@@ -118,39 +115,37 @@ export async function gradeJoke(
   favoriteComedians: string[] = []
 ): Promise<JokeGradeResponse> {
   const comedianContext = favoriteComedians.length > 0
-    ? `Consider the user admires these comedians: ${favoriteComedians.join(', ')}. Grade with their comedic sensibilities in mind.`
+    ? `The comedian admires: ${favoriteComedians.join(', ')}.`
     : '';
 
-  const systemPrompt = `You are an experienced comedy coach and talent scout. Your job is to grade jokes honestly but constructively, helping comedians improve.
+  const systemPrompt = `You're a brutally honest comedy coach. Your job is to grade jokes like a real comedy club booker would judge them - honestly, not kindly.
 
 ${comedianContext}
 
-Grade the joke on a scale of 1-10 where:
-- 1-3: Needs significant work (weak premise, predictable punchline, poor structure)
-- 4-5: Shows potential but has clear issues to address
-- 6-7: Solid joke with room for improvement
-- 8-9: Strong joke, minor tweaks could make it great
-- 10: Exceptional, ready for a special
+Scoring (be HONEST - most jokes are 4-6, not 7-8):
+- 1-2: Not a joke. No structure, no punchline, or completely misses
+- 3-4: Has an idea but the execution is weak. Predictable or poorly constructed
+- 5-6: Decent joke. Works but won't kill. Room for improvement
+- 7-8: Strong joke. Would get real laughs from a crowd
+- 9-10: Exceptional. Tight, original, memorable. Reserve these for truly great jokes
 
-Be honest but encouraging. Even great comedians bomb sometimes.`;
+Don't be nice. Don't pad scores. A 5 is fine - it means "keep working on it."
+If the joke sucks, say so. That's how comedians get better.`;
 
-  const userPrompt = `${prompt ? `Prompt given: "${prompt}"` : 'This was a freeform submission (no prompt).'}
+  const userPrompt = `${prompt ? `Prompt: "${prompt}"` : 'Freeform submission (no prompt).'}
 
 Style: ${style}
 
-Joke submitted:
+Joke:
 "${jokeText}"
 
-Provide:
-1. A score from 1-10
-2. 3-5 specific, actionable tips to improve this joke
-3. A brief analysis of what works and what doesn't
+Grade this joke. Be honest - what score does it actually deserve? What specifically works or doesn't work? Give actionable tips, not generic advice.
 
-Respond in this exact JSON format (no markdown, just JSON):
+Respond in JSON format:
 {
-  "score": <number>,
-  "tips": ["tip 1", "tip 2", "tip 3"],
-  "analysis": "Brief analysis here"
+  "score": <number 1-10>,
+  "tips": ["specific tip 1", "specific tip 2", "specific tip 3"],
+  "analysis": "What works, what doesn't, and why"
 }`;
 
   const content = await chatCompletion(
@@ -162,7 +157,6 @@ Respond in this exact JSON format (no markdown, just JSON):
   );
 
   try {
-    // Try to parse JSON, handling potential markdown wrapping
     let jsonStr = content;
     const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (jsonMatch) {
@@ -173,14 +167,14 @@ Respond in this exact JSON format (no markdown, just JSON):
     
     return {
       score: Math.min(10, Math.max(1, result.score || 5)),
-      tips: result.tips || ['Keep writing and experimenting!'],
+      tips: result.tips || ['Keep writing and experimenting.'],
       analysis: result.analysis || 'Unable to provide detailed analysis.',
     };
   } catch (parseErr) {
     console.error('[AI] Failed to parse grade response:', content);
     return {
       score: 5,
-      tips: ['Keep writing and experimenting!'],
+      tips: ['Keep writing and experimenting.'],
       analysis: 'Unable to provide detailed analysis due to a parsing error.',
     };
   }
@@ -205,27 +199,27 @@ export async function generateSuggestedSet(
     duration: j.duration_seconds,
   }));
 
-  const prompt = `You are a comedy set-building expert. Create an optimized ${targetDuration}-minute set from these jokes.
+  const prompt = `You're building a ${targetDuration}-minute standup set from these jokes.
 
 ${comedianContext}
 
 Available jokes:
 ${JSON.stringify(jokeSummaries, null, 2)}
 
-Target duration: ${targetDuration} minutes (${targetDuration * 60} seconds)
+Target: ${targetDuration} minutes (${targetDuration * 60} seconds)
 
-Consider:
-1. Start strong - hook the audience early
-2. Build momentum with your strongest material
-3. Vary the style and topics for flow
-4. End on your best closer
-5. Account for transitions and audience reaction time (add ~20% to pure joke time)
-6. Prioritize higher-scored jokes but consider variety
+Build the set:
+1. Open strong - hook them early
+2. Build momentum with your best stuff
+3. Vary style and topics for flow
+4. Close on your best closer
+5. Add ~20% buffer for reactions/transitions
+6. Prioritize higher scores but maintain variety
 
-Respond in this exact JSON format (no markdown, just JSON):
+Respond in JSON:
 {
   "selectedJokeIds": ["id1", "id2", ...],
-  "reasoning": "Brief explanation of your choices and suggested order"
+  "reasoning": "Brief explanation of order and choices"
 }`;
 
   const content = await chatCompletion(
@@ -265,21 +259,20 @@ export async function generateSetNotes(
     style: j.style,
   }));
 
-  const prompt = `You are a comedy performance coach. Create detailed performance notes for this set called "${setName}".
+  const prompt = `You're a comedy performance coach. Create performance notes for this set called "${setName}".
 
-Set list (in order):
+Set list:
 ${jokeDetails.map(j => `${j.index}. [${j.style}] ${j.text}`).join('\n\n')}
 
-Generate comprehensive performance notes including:
+Generate:
+1. Opening suggestions: 2-3 ways to warm up/intro
+2. Closing suggestions: 2-3 strong closers or callbacks
+3. Callback opportunities: Where earlier jokes can be referenced
+4. Stage directions: Physicality, timing, delivery notes per joke
+5. Recovery lines: 3-4 lines if something bombs
+6. General notes: Flow observations and tips
 
-1. Opening suggestions: 2-3 ways to introduce the set/warm up the crowd
-2. Closing suggestions: 2-3 strong closers or callbacks to end on
-3. Callback opportunities: Identify jokes that can reference earlier material for callbacks
-4. Stage directions: Specific physicality, timing, or delivery notes for each joke
-5. Audience recovery lines: 3-4 lines to use if a joke bombs
-6. General notes: Overall flow observations and tips
-
-Respond in this exact JSON format (no markdown, just JSON):
+Respond in JSON:
 {
   "opening_suggestions": ["suggestion 1", "suggestion 2"],
   "closing_suggestions": ["suggestion 1", "suggestion 2"],
