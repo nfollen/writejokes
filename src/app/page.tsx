@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Mic2, Sparkles, BarChart3, ListMusic, ArrowRight, Share2 } from 'lucide-react';
+import { Mic2, Sparkles, BarChart3, ListMusic, ArrowRight } from 'lucide-react';
 
 export default function HomePage() {
   return (
@@ -40,24 +40,12 @@ export default function HomePage() {
                 Get Started
                 <ArrowRight className="w-5 h-5" />
               </Link>
-              <button
-                onClick={() => {
-                  if (navigator.share) {
-                    navigator.share({
-                      title: 'WriteJokes',
-                      text: 'Check out this writing tool for comedians!',
-                      url: window.location.href,
-                    });
-                  } else {
-                    navigator.clipboard.writeText(window.location.href);
-                    alert('Link copied to clipboard!');
-                  }
-                }}
+              <Link
+                href="#features"
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 border border-border hover:border-primary/50 text-foreground font-semibold rounded-xl transition-all"
               >
-                <Share2 className="w-5 h-5" />
-                Share with a Friend
-              </button>
+                See How It Works
+              </Link>
             </div>
 
             <p className="text-sm text-muted">
