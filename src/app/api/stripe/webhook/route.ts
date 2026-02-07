@@ -22,58 +22,105 @@ export async function POST(request: Request) {
 
   const supabase = createServiceRoleClient();
 
+  // Helper to find user by customer ID when metadata is missing
+  async function findUserByCustomerId(customerId: string) {
+    const { data } = await supabase
+      .from('users')
+      .select('id')
+      .eq('stripe_customer_id', customerId)
+      .single();
+    return data?.id;
+  }
+
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
-        const userId = session.metadata?.userId;
+        let userId = session.metadata?.userId;
+
+        // Fallback: find user by customer ID
+        if (!userId && session.customer) {
+          userId = await findUserByCustomerId(session.customer as string);
+        }
+
+        console.log('Checkout completed:', { userId, sessionId: session.id, subscription: session.subscription });
 
         if (userId) {
-          await supabase
+          const { error } = await supabase
             .from('users')
             .update({
               subscription_tier: 'pro',
               stripe_subscription_id: session.subscription as string,
             })
             .eq('id', userId);
+          
+          if (error) {
+            console.error('Error updating user after checkout:', error);
+          } else {
+            console.log('User upgraded to pro:', userId);
+          }
+        } else {
+          console.error('No user ID found for checkout session:', session.id);
         }
         break;
       }
 
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
-        const userId = subscription.metadata?.userId;
+        let userId = subscription.metadata?.userId;
+
+        // Fallback: find user by customer ID
+        if (!userId && subscription.customer) {
+          userId = await findUserByCustomerId(subscription.customer as string);
+        }
+
+        console.log('Subscription updated:', { userId, status: subscription.status });
 
         if (userId) {
           const tier = subscription.status === 'active' ? 'pro' : 'free';
-          await supabase
+          const { error } = await supabase
             .from('users')
             .update({ subscription_tier: tier })
             .eq('id', userId);
+          
+          if (error) {
+            console.error('Error updating subscription:', error);
+          }
         }
         break;
       }
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
-        const userId = subscription.metadata?.userId;
+        let userId = subscription.metadata?.userId;
+
+        // Fallback: find user by customer ID
+        if (!userId && subscription.customer) {
+          userId = await findUserByCustomerId(subscription.customer as string);
+        }
+
+        console.log('Subscription deleted:', { userId });
 
         if (userId) {
-          await supabase
+          const { error } = await supabase
             .from('users')
             .update({
               subscription_tier: 'free',
               stripe_subscription_id: null,
             })
             .eq('id', userId);
+          
+          if (error) {
+            console.error('Error downgrading user:', error);
+          }
         }
         break;
       }
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice;
-        // Could send an email notification here
         console.log('Payment failed for invoice:', invoice.id);
+        // Could send an email notification here
         break;
       }
     }

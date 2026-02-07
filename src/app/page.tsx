@@ -1,5 +1,7 @@
+'use client';
+
 import Link from 'next/link';
-import { Mic2, Sparkles, BarChart3, ListMusic, ArrowRight } from 'lucide-react';
+import { Mic2, Sparkles, BarChart3, ListMusic, ArrowRight, Share2 } from 'lucide-react';
 
 export default function HomePage() {
   return (
@@ -35,15 +37,27 @@ export default function HomePage() {
                 href="/login"
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-primary hover:bg-primary-hover text-white font-semibold rounded-xl transition-all"
               >
-                Get Started Now
+                Get Started
                 <ArrowRight className="w-5 h-5" />
               </Link>
-              <Link
-                href="#features"
+              <button
+                onClick={() => {
+                  if (navigator.share) {
+                    navigator.share({
+                      title: 'WriteJokes',
+                      text: 'Check out this writing tool for comedians!',
+                      url: window.location.href,
+                    });
+                  } else {
+                    navigator.clipboard.writeText(window.location.href);
+                    alert('Link copied to clipboard!');
+                  }
+                }}
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 border border-border hover:border-primary/50 text-foreground font-semibold rounded-xl transition-all"
               >
-                See How It Works
-              </Link>
+                <Share2 className="w-5 h-5" />
+                Share with a Friend
+              </button>
             </div>
 
             <p className="text-sm text-muted">
@@ -78,7 +92,7 @@ export default function HomePage() {
               {
                 icon: ListMusic,
                 title: 'Set Builder',
-                description: 'Drag-and-drop your best jokes into perfectly timed sets.',
+                description: 'Organize your best jokes into perfectly timed sets.',
               },
               {
                 icon: Mic2,
@@ -126,54 +140,20 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Pricing Preview */}
+      {/* CTA Section */}
       <section className="py-20 border-t border-border">
-        <div className="max-w-4xl mx-auto px-4">
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Free */}
-            <div className="p-8 rounded-xl bg-card border border-border">
-              <h3 className="text-xl font-bold mb-2">Free</h3>
-              <p className="text-3xl font-bold mb-4">$0</p>
-              <ul className="space-y-3 text-muted mb-8">
-                <li>✓ 15 jokes per month</li>
-                <li>✓ Writing prompts & feedback</li>
-                <li>✓ 3 set lists</li>
-                <li>✓ Basic stats</li>
-              </ul>
-              <Link
-                href="/login"
-                className="block w-full py-3 text-center border border-border hover:border-primary rounded-lg font-medium transition-all"
-              >
-                Get Started Now
-              </Link>
-            </div>
-
-            {/* Pro */}
-            <div className="p-8 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10 border-2 border-primary">
-              <div className="flex items-center gap-2 mb-2">
-                <h3 className="text-xl font-bold">Pro</h3>
-                <span className="px-2 py-0.5 bg-primary text-white text-xs font-bold rounded-full">
-                  POPULAR
-                </span>
-              </div>
-              <p className="text-3xl font-bold mb-4">
-                $10<span className="text-lg text-muted">/mo</span>
-              </p>
-              <ul className="space-y-3 text-foreground mb-8">
-                <li>✓ Unlimited jokes</li>
-                <li>✓ Auto-generate sets</li>
-                <li>✓ Performance notes</li>
-                <li>✓ Unlimited set lists</li>
-                <li>✓ Progress tracking</li>
-              </ul>
-              <Link
-                href="/login"
-                className="block w-full py-3 text-center bg-primary hover:bg-primary-hover text-white rounded-lg font-medium transition-all"
-              >
-                Get Started Now
-              </Link>
-            </div>
-          </div>
+        <div className="max-w-4xl mx-auto px-4 text-center">
+          <h2 className="text-3xl font-bold mb-4">Ready to write?</h2>
+          <p className="text-muted mb-8 max-w-xl mx-auto">
+            Join comedians who are writing more, getting better feedback, and building killer sets.
+          </p>
+          <Link
+            href="/login"
+            className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-primary hover:bg-primary-hover text-white font-semibold rounded-xl transition-all"
+          >
+            Get Started
+            <ArrowRight className="w-5 h-5" />
+          </Link>
         </div>
       </section>
 

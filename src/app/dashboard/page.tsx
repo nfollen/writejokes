@@ -28,14 +28,29 @@ import {
 } from 'lucide-react';
 
 function DashboardContent() {
-  const { user } = useUser();
+  const { user, refreshUser } = useUser();
   const { jokes } = useJokes();
   const { setLists } = useSetLists();
   const { showOnboarding, setShowOnboarding } = useStore();
   const [stats, setStats] = useState<UserStats | null>(null);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const searchParams = useSearchParams();
 
   const showSuccess = searchParams.get('success') === 'true';
+
+  // Refresh user data after successful checkout
+  useEffect(() => {
+    if (showSuccess) {
+      setShowSuccessMessage(true);
+      // Refresh user to get updated subscription status
+      refreshUser();
+      // Clear the success param from URL after showing message
+      const timer = setTimeout(() => {
+        window.history.replaceState({}, '', '/dashboard');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSuccess, refreshUser]);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -60,7 +75,7 @@ function DashboardContent() {
 
         <main className="max-w-7xl mx-auto px-4 py-8 pt-24 md:pt-20">
           {/* Success Message */}
-          {showSuccess && (
+          {showSuccessMessage && (
             <div className="mb-6 p-4 rounded-xl bg-success/10 border border-success/30 flex items-center gap-3">
               <Check className="w-5 h-5 text-success" />
               <p className="text-success font-medium">
